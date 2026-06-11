@@ -1,0 +1,1600 @@
+
+## SOURCES
+## Bruce, P., Bruce, A., Gedeck, P. (2020). Practical Statistics for Data Scientists (2nd ed.). O'Reilly Media.
+## Nield, T. (2022). Essential Math for Data Science. O'Reilly Media. 
+## Wickham, H., Çetinkaya-Rundel, M., & Grolemund, G. (2023). R for Data Science (2nd ed.). O’Reilly Media.
+## OpenAI. (2024). ChatGPT (March 2024 version) [Large language model]. https://chat.openai.com/
+
+
+## KINDLY NOTE: Coding assistance was supported using ChatGPT (OpenAI, 2024). All statistical decisions and interpretations were independently verified by Michelle Hill.
+
+
+### WEEK 4 - EDA on RESEARCH QUESTIONS ###
+## Create at least one preliminary graph and summary table for each of the 3 research questions
+
+## Setup
+## Importing the library that enables R to read my Excel file 
+library(readxl)
+
+## Checking which directory R is working in
+getwd()
+
+## Changed the working directory so that I can keep all my project files together
+setwd("/Users/michelle/Grad-505 Foundations in Data Science/Project Files")
+
+## Listing the files in the project directory to make sure R and I are on the same page :)
+list.files()
+
+## Listing all the sheets in my data workbook to ensure R can read it
+excel_sheets("/Users/michelle/Grad-505 Foundations in Data Science/Project Files/particulate_nutrients_data.xlsx")
+
+partnutfs = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+names(partnutfs)
+
+## Start of Exploratory Data Analysis - Choosing 3-5 characteristics to examine
+
+## Made the original column names friendly (will learn to loop this)
+names(partnutfs)[names(partnutfs) == "Particulate Total N, mg/L"] = "particulate_total_n_mg_l"
+
+names(partnutfs)[names(partnutfs) == "Particulate Total P, ug/L"] = "particulate_total_p_ug_l"
+
+names(partnutfs)[names(partnutfs) == "Particulate Organic Carbon, mg/L"] = "particulate_organic_carbon_mg_l"
+
+names(partnutfs)[names(partnutfs) == "Total Suspended Solids, mg/L"] = "total_suspended_solids_mg_l"
+
+## Use attach() to avoid calling the dataset every time I reference its variables
+attach(partnutfs)
+
+## Making variable names even easier to use
+PTN = particulate_total_n_mg_l
+PTP = particulate_total_p_ug_l
+POC = particulate_organic_carbon_mg_l
+TSS = total_suspended_solids_mg_l
+
+## Used boxplot() for each quantitative variable to identify any obvious outliers or issues with the data
+boxplot(PTN, main = "Particulate Total N (PTN)", horizontal = TRUE)
+boxplot(PTP, main = "Particulate Total P (PTP)", horizontal = TRUE)
+boxplot(POC, main = "Particulate Organic Carbon (POC)", horizontal = TRUE)
+boxplot(TSS, main = "Total Suspended Solids (TSS)", horizontal = TRUE)
+
+
+## QUESTION 1: HOW HAVE NUTRIENT PARTICLE LEVELS CHANGED OVER TIME IN LAKE MICHIGAN? WHAT PREDICTIONS, OR ASSUMPTIONS, CAN I MAKE ABOUT TODAY'S LEVELS BASED ON PAST TRENDS?
+## (REGRESSION ATTEMPT)
+
+## Summary table for Q1
+detach(partnutfs)
+mi = subset(partnutfs[LAKE == "Michigan", ])
+
+mi_by_year = aggregate(total_suspended_solids_mg_l ~ YEAR, data = mi, FUN = function(x) c(median = median(x, na.rm = TRUE), n = sum(!is.na(x))))
+
+mi_table = data.frame(Year = mi_by_year$YEAR, MEDIAN = round(mi_by_year$total_suspended_solids_mg_l[, "median"], 3), SIZE = as.integer(mi_by_year$total_suspended_solids_mg_l[, "n"])) 
+
+mi_table
+
+
+## Aggregated Time Series Plot of TSS in Lake Michigan only for Q1
+plot(mi_table$Year, mi_table$MEDIAN, type = "b", pch = 16, xlab = "Year", ylab = "Median TSS (mg/L)", main = "Lake Michigan: Median Total Suspended Solids Over Time")
+
+## QUESTION 2 - CAN I IDENTIFY WHICH LAKE A SAMPLE CAME FROM USING ONLY A COMBINATION OF PARTICULATE NUTRIENT INFORMATION AND SEASONAL DATA?
+## (CLASSIFICATION ATTEMPT)
+
+## Boxplot of TSS concentration per lake
+par(mar = c(9,  5, 5, 2)) # bottom, left, top, right
+
+boxplot(TSS ~ LAKE, data = partnutfs, log = "y", xlab = "Lake", ylab = "Total Suspended Solids (mg/L)", main = "Total Suspended Solids by Lake", las = 2, cex.axis = 0.6)
+
+## Summary Table
+class_summary = aggregate(TSS ~ LAKE, data = partnutfs, FUN = function(x) c(median = median(x, na.rm = TRUE), IQR = IQR(x, na.rm = TRUE), n = sum(!is.na(x))))
+class_summary
+
+
+## Summary Table Clean Up
+class_table = data.frame(LAKE = class_summary$LAKE, MEDIAN = round(class_summary$TSS[, 1], 3), IQR = round(class_summary$TSS[, 2], 3), SIZE = as.integer(class_summary$TSS[, 3]))
+class_table
+
+
+## QUESTION 3 - ARE THERE ANY OUTLIERS IN THE OBSERVATIONS THAT SUGGEST ATYPICAL ENVIRONMENTAL CONDITIONS FOR ANY OF THE LAKES? 
+## (ANOMALY DETECTION ATTEMPT)
+
+## Same plot from Q2 different label
+par(mar = c(9,  5, 5, 2)) # bottom, left, top, right
+
+boxplot(TSS ~ LAKE, data = partnutfs, log = "y", xlab = "Lake", ylab = "Total Suspended Solids (mg/L)", main = "Outliers in Total Suspended Solids by Lake", las = 2, cex.axis = 0.6)
+
+## Count outliers
+count_outliers = function(x) {
+  q1 = quantile(x, 0.25, na.rm = TRUE)
+  q3 = quantile(x, 0.75, na.rm = TRUE)
+  iqr = q3 - q1
+  sum(x > (q3 + 1.5 * iqr), na.rm = TRUE)
+}
+
+## Aggregate by lake
+anomaly_summary = aggregate(total_suspended_solids_mg_l ~ LAKE, data = partnutfs,FUN = function(x) c(outliers = count_outliers(x), total = sum(!is.na(x))))
+
+
+## Clean up the summary table
+anomaly_table = data.frame(
+  Lake = anomaly_summary$LAKE,
+  Outliers = anomaly_summary$total_suspended_solids_mg_l[, 1],
+  Observations = anomaly_summary$total_suspended_solids_mg_l[, 2]
+)
+anomaly_table
+
+
+###  WEEK 6 HYPOTHESIS & STATISTICAL TESTING ###
+
+## Setup
+library(readxl)
+partnutfs = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+names(partnutfs)[names(partnutfs) == "Particulate Total N, mg/L"] = "ptn"
+names(partnutfs)[names(partnutfs) == "Particulate Total P, ug/L"] = "ptp"
+names(partnutfs)[names(partnutfs) == "Particulate Organic Carbon, mg/L"] = "poc"
+names(partnutfs)[names(partnutfs) == "Total Suspended Solids, mg/L"] = "tss"
+names(partnutfs)[names(partnutfs) == "YEARL"] = "year"
+
+##  QUESTION 1 HYPOTHESES:
+##  H0: Nutrient particle levels in Lake Michigan are not changing over time.  B1 = 0 
+##  H1: Nutrient particle levels in Lake Michigan are changing over time.  B1 does not equal 0 
+
+##  Created subset of data for rows only related to Lake Michigan
+partnutmi = subset(partnutfs, LAKE == "Michigan")
+year = as.numeric(partnutmi$YEAR)
+
+##  Fitting linear model to the particulate nutrients being analyzed
+##  Using log to reduce skewness of values
+ptnmodel = lm(log(ptn) ~ year, data = partnutmi)
+summary(ptnmodel)
+
+ptpmodel = lm(log(ptp) ~ year, data = partnutmi)
+summary(ptpmodel)
+
+pocmodel = lm(log(poc) ~ year, data = partnutmi)
+summary(pocmodel)
+
+tssmodel = lm(log(tss) ~ year, data = partnutmi)
+summary(tssmodel)
+
+##  Generating plots to illustrate linear regression assumption validation,
+##    one for each nutrient
+par(mfrow = c(2,2))
+plot(ptnmodel)				## PTN Model
+par(mfrow = c(1,1))
+
+par(mfrow = c(2,2))
+plot(ptpmodel)				## PTP Model
+par(mfrow = c(1,1))
+
+par(mfrow = c(2,2))
+plot(pocmodel)				## POC Model
+par(mfrow = c(1,1))
+
+par(mfrow = c(2,2))
+plot(tssmodel)				## TSS Model
+par(mfrow = c(1,1))
+
+##  Generating ACF plots to assess linear regression assumption of
+##    independence
+acf(resid(ptnmodel), main="ACF residuals: PTN")
+acf(resid(ptpmodel), main="ACF residuals: PTP")
+acf(resid(pocmodel), main="ACF residuals: POC")
+acf(resid(tssmodel), main="ACF residuals: TSS")
+
+
+
+##  QUESTION 2 HYPOTHESES:
+##  H0: A model using particulate nutrients and season predicts LAKE no better than a baseline model.
+##  H1: A model using particulate nutrients and season predicts LAKE better than a baseline model.
+
+##  Ensuring only rows noted as Spring or Summer are included in the dataset
+data2 = partnutfs[partnutfs$SEASON %in% c("Spring", "Summer"), ]
+
+##  This model only needed the LAKE, SEASON, and four particulate nutrients to test the hypothesis
+data2 = data2[, c("LAKE", "SEASON", "ptn", "ptp", "poc", "tss")]
+
+##  Removed empty rows from the dataset (only removed one row)
+data2 = data2[complete.cases(data2), ]
+
+##  Convert categorical variables to factors
+data2$LAKE = factor(data2$LAKE)
+data2$SEASON = factor(data2$SEASON)
+
+##  Log transform particulate nutrients and use of a very tiny constant (+1e-6) to ensure safe math
+data2$log_ptn = log(data2$ptn + 1e-6)
+data2$log_ptp = log(data2$ptp + 1e-6)
+data2$log_poc = log(data2$poc + 1e-6)
+data2$log_tss = log(data2$tss + 1e-6)
+
+##  Train / test split (30% test set)
+set.seed(123)
+
+##  Having R randomly choose 30% of observations (150 rows) without replacement to set aside for testing
+n = nrow(data2)
+test_index = sample(1:n, size = round(0.30 * n))
+
+train = data2[-test_index, ]			##  training set (other 70% or 350 rows)
+test  = data2[test_index, ]				##  test set
+
+##  Baseline model for H0 (most common lake)
+baseline_lake = names(sort(table(train$LAKE), decreasing = TRUE))[1]
+pred_baseline = factor(rep(baseline_lake, nrow(test)),levels = levels(test$LAKE))
+
+acc_baseline = mean(pred_baseline == test$LAKE)
+acc_baseline
+
+
+##  "nnet" enables fitting of neural networks and multinominal logistic regression models for classification
+library(nnet)
+
+##  Season-only classification model
+m_season = multinom(LAKE ~ SEASON, data = train, trace = FALSE)
+pred_season = predict(m_season, newdata = test)
+
+acc_season = mean(pred_season == test$LAKE)
+acc_season
+
+##  Full model: Season + particulate nutrients
+m_full = multinom(LAKE ~ SEASON + log_ptn + log_ptp + log_poc + log_tss, data = train, trace = FALSE)
+
+pred_full = predict(m_full, newdata = test)
+acc_full = mean(pred_full == test$LAKE)
+acc_full
+
+## Confusion matrix for interpretation
+table(True = test$LAKE, Predicted = pred_full)
+
+## Permutation test (formal hypothesis test - assessing if the full model performed better than baseline)
+
+B = 1000
+perm_acc = numeric(B)
+
+set.seed(123)
+
+## Loop of 1000 permutations
+## Creating a temporary copy of the training set of observations
+## Destroying the relationship between LAKE labels and predictors
+## Fitting the same multinominal model on permuted data with random labels, the model is learning noise
+for (b in 1:B) {
+  train_perm = train							
+  train_perm$LAKE = sample(train_perm$LAKE)		
+  m_perm = multinom(							
+    LAKE ~ SEASON + log_ptn + log_ptp + log_poc + log_tss,
+    data = train_perm,
+    trace = FALSE
+  )												
+## Applies the model to test data, outputs predicted lake labels
+## Compares predictions to actuals and calculates permutation accuracy
+  pred_perm = predict(m_perm, newdata = test)	
+  perm_acc[b] = mean(pred_perm == test$LAKE)	
+}
+
+##  if p-value < 0.05, classification accuracy is not due to chance
+p_value = mean(perm_acc >= acc_full)			
+p_value			##  Output: 0 :)
+										
+
+## Confusion Matrix Heat Map - illustrates both accurate and inaccurate lake label predictions
+cm = table(True = test$LAKE, Pred = pred_full)
+cm_df = as.data.frame(cm)
+
+library(ggplot2)       
+ggplot(cm_df, aes(x = Pred, y = True, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), color = "black") +
+  scale_fill_viridis_c(option = "C") +
+  labs(title = "Confusion Matrix (Full Model)",
+       x = "Predicted Lake", y = "True Lake")
+       
+
+
+##  Accuracy Bar Chart - illustrates classification was much more accurate using the full model of season and particulate nutrient to predict lake label
+acc_df = data.frame(Model = c("Baseline", "Season-only", "Full"),
+  Accuracy = c(acc_baseline, acc_season, acc_full)
+)
+
+ggplot(acc_df, aes(x = Model, y = Accuracy)) + geom_col() +
+  labs(title = "Accuracy by Model",
+       y = "Accuracy")
+
+
+##  Box Plots by Lake Split by Season - illustrates apparent overlap between lakes and their particulate nutrient concentrations
+ggplot(data2, aes(x = LAKE, y = log_ptn)) + 
+  geom_boxplot() +
+  facet_wrap(~SEASON) +
+  labs(title = "log(PTN) by Lake (Spring vs Summer)",
+       y = "log(PTN)")
+       
+ggplot(data2, aes(x = LAKE, y = log_ptp)) + 
+  geom_boxplot() +
+  facet_wrap(~SEASON) +
+  labs(title = "log(PTP) by Lake (Spring vs Summer)",
+       y = "log(PTP)")
+
+ggplot(data2, aes(x = LAKE, y = log_poc)) + 
+  geom_boxplot() +
+  facet_wrap(~SEASON) +
+  labs(title = "log(POC) by Lake (Spring vs Summer)",
+       y = "log(POC)")       
+
+ggplot(data2, aes(x = LAKE, y = log_tss)) + 
+  geom_boxplot() +
+  facet_wrap(~SEASON) +
+  labs(title = "log(TSS) by Lake (Spring vs Summer)",
+       y = "log(TSS)")
+
+
+## PERMUTATION DISTRIBUTION VISUAL - illustrates how far the full model accuracy is outside the permutation distribution range
+
+xmax = max(c(perm_acc, acc_full))
+
+par(xpd = FALSE)
+
+hist(perm_acc,
+breaks = 25,
+xlim = c(0, xmax + 0.02),
+col = "grey80",
+border = "grey40",
+main = "Permutation Distribution of Accuracy",
+xlab = "Accuracy")
+
+abline(v = acc_full, col = "red", lwd = 3)
+
+
+
+
+## QUESTION 3 HYPOTHESES:
+##  H0: After accounting for lake, season DOES NOT predict outlier status.
+##  H1: After accounting for lake, season DOES predict outlier status.
+
+
+##  THE CODE BELOW WAS RUN FOR ALL FOUR PARTICULATE NUTRIENTS
+##  ONLY THE PTN CODE IS COMMENTED
+
+
+
+## PTN ASSESSMENT  ## PTN ASSESSMENT  ## PTN ASSESSMENT
+library(readxl)
+df = read_excel("particulate_nutrients_data.xlsx",
+                 sheet = 2)
+
+##  Create a working dataset for ONE nutrient (PTN)
+
+df_ptn = df[, c("LAKE",
+                 "SEASON",
+                 "Particulate Total N, mg/L")]
+                 
+##  Remove missing values because Logistic regression cannot handle them
+df_ptn = df_ptn[!is.na(df_ptn$LAKE), ]
+df_ptn = df_ptn[!is.na(df_ptn$SEASON), ]
+df_ptn = df_ptn[!is.na(df_ptn$`Particulate Total N, mg/L`), ]
+
+##  Factor LAKE and SEASON to categorical variables
+df_ptn$LAKE   = as.factor(df_ptn$LAKE)
+df_ptn$SEASON = as.factor(df_ptn$SEASON)
+
+##  Define outliers using the IQR rule within each lake
+##  Calculate Q1 (25th percentile) within each lake
+q1_by_lake = ave(df_ptn$`Particulate Total N, mg/L`,
+                  df_ptn$LAKE,
+                  FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+##  Calculate Q3 (75th percentile) within each lake
+q3_by_lake = ave(df_ptn$`Particulate Total N, mg/L`,
+                  df_ptn$LAKE,
+                  FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+##  Compute IQR within each lake
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+##  Define lower and upper bounds for outliers
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+##  Create binary outlier flag (TRUE = outlier)
+df_ptn$outlier = (
+  df_ptn$`Particulate Total N, mg/L` < lower_bound |
+  df_ptn$`Particulate Total N, mg/L` > upper_bound
+)
+
+##  Quick check: number of outliers vs non-outliers
+table(df_ptn$outlier)
+
+##  Fit logistic regression model
+##  Outcome: outlier (TRUE / FALSE)
+##  Predictors: SEASON + LAKE
+model_ptn = glm(outlier ~ SEASON + LAKE,
+                 data = df_ptn,
+                 family = binomial)
+
+summary(model_ptn)
+
+##  Compare performance of reduced model to Full model
+model_ptn_reduced = glm(outlier ~ LAKE,
+                         data = df_ptn,
+                         family = binomial)
+
+anova(model_ptn_reduced, model_ptn, test = "Chisq")
+
+## Output: Pr-value = 0.01423, which is < 0.05 so reject H0
+
+## Descriptive visual shows proportion of outliers by season
+outlier_rate_by_season = tapply(df_ptn$outlier,
+                                 df_ptn$SEASON,
+                                 mean)
+barplot(outlier_rate_by_season,
+        ylab = "Proportion of observations flagged as outliers",
+        xlab = "Season",
+        main = "PTN outlier rate by season")  
+        
+        
+##  Plot lake-specific outlier bounds + overlay OUTLIERS
+##  Colored by SEASON (PTN example)
+library(readxl)
+df = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+
+##  Keep only needed columns
+d = df[, c("LAKE", "SEASON", "Particulate Total N, mg/L")]
+
+##  Remove missing values
+d = d[!is.na(d$LAKE), ]
+d = d[!is.na(d$SEASON), ]
+d = d[!is.na(d$`Particulate Total N, mg/L`), ]
+
+##  Clean up season labels
+d$SEASON = trimws(d$SEASON)
+
+##  Make categorical variables
+d$LAKE = as.factor(d$LAKE)
+d$SEASON = as.factor(d$SEASON)
+
+##  Compute IQR bounds WITHIN each lake
+
+##  Q1 and Q3 within lake for each observation
+q1_by_lake = ave(d$`Particulate Total N, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+q3_by_lake = ave(d$`Particulate Total N, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+## Outlier flag for each row
+d$outlier = (d$`Particulate Total N, mg/L` < lower_bound) | (d$`Particulate Total N, mg/L` > upper_bound)
+
+##  Make a lake-level table of bounds (one row per lake)
+##  Using tapply to get one value per lake
+lower_lake = tapply(lower_bound, d$LAKE, function(x) x[1])
+upper_lake = tapply(upper_bound, d$LAKE, function(x) x[1])
+
+median_lake = tapply(d$`Particulate Total N, mg/L`, d$LAKE, median, na.rm = TRUE)
+
+##  Order lakes by median (makes plot easier to read)
+ord = order(median_lake)
+
+lake_names = names(median_lake)[ord]
+lower_lake = lower_lake[ord]
+upper_lake = upper_lake[ord]
+median_lake = median_lake[ord]
+
+## Numeric x positions for lakes
+x_lake = seq_along(lake_names)
+names(x_lake) = lake_names
+
+## Plot lake-specific outlier bounds + overlay OUTLIERS colored by SEASON
+
+library(readxl)
+
+df = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+
+## Keep only needed columns
+d = df[, c("LAKE", "SEASON", "Particulate Total N, mg/L")]
+
+## Remove missing values
+d = d[!is.na(d$LAKE), ]
+d = d[!is.na(d$SEASON), ]
+d = d[!is.na(d$`Particulate Total N, mg/L`), ]
+
+## Clean up season labels (helps avoid "Spring" vs "Spring " issues)
+d$SEASON = trimws(d$SEASON)
+
+## Make categorical variables
+d$LAKE = as.factor(d$LAKE)
+d$SEASON = as.factor(d$SEASON)
+
+
+## Compute IQR bounds within each lake
+q1_by_lake = ave(d$`Particulate Total N, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+q3_by_lake = ave(d$`Particulate Total N, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+## Outlier flag for each row
+d$outlier = (d$`Particulate Total N, mg/L` < lower_bound) | (d$`Particulate Total N, mg/L` > upper_bound)
+
+ 
+## Get one upper & lower value per lake using tapply
+lower_lake = tapply(lower_bound, d$LAKE, function(x) x[1])
+upper_lake = tapply(upper_bound, d$LAKE, function(x) x[1])
+
+median_lake = tapply(d$`Particulate Total N, mg/L`, d$LAKE, median, na.rm = TRUE)
+
+## Order lakes by median (makes plot easier to read)
+ord = order(median_lake)
+
+lake_names = names(median_lake)[ord]
+lower_lake = lower_lake[ord]
+upper_lake = upper_lake[ord]
+median_lake = median_lake[ord]
+
+## Numeric x positions for lakes
+x_lake = seq_along(lake_names)
+names(x_lake) = lake_names
+
+## Plot the bounds per lake (range bars) + median point 
+plot(x_lake, median_lake,
+     ylim = range(c(lower_lake, upper_lake), na.rm = TRUE),
+     xaxt = "n",
+     xlab = "Lake",
+     ylab = "PTN (mg/L)",
+     main = "PTN outlier bounds by lake (IQR) with outliers colored by season")
+
+axis(1, at = x_lake, labels = lake_names, las = 2, cex.axis = 0.8)
+
+## Range bars = non-outlier bounds for each lake
+arrows(x0 = x_lake, y0 = lower_lake,
+       x1 = x_lake, y1 = upper_lake,
+       angle = 90, code = 3, length = 0.04)
+
+## Median point
+points(x_lake, median_lake, pch = 16)
+
+
+## Overlay outlier points, colored by SEASON 
+## Keep only outliers
+d_out = d[d$outlier == TRUE, ]
+
+## If there are no outliers, avoid plotting errors
+if(nrow(d_out) > 0){
+
+  ## Map each outlier's lake to its x-position on the plot
+  x_out = x_lake[as.character(d_out$LAKE)]
+
+  ## Add slight horizontal jitter so points don't stack perfectly
+  x_out_j = jitter(x_out, amount = 0.12)
+
+  ## Assign a default set of colors (uses R's default palette)
+  season_levels = levels(d$SEASON)
+  season_cols = palette()[seq_along(season_levels)]
+  names(season_cols) = season_levels
+
+  ## Plot outliers (shape 19 = solid circle)
+  points(x_out_j, d_out$`Particulate Total N, mg/L`, pch = 19, col = season_cols[as.character(d_out$SEASON)])
+
+  ## Add legend for season
+  legend("topright", legend = season_levels, col = season_cols, pch = 19, title = "Season", cex = 0.9)
+
+} else {
+  text(x = mean(x_lake), y = max(upper_lake, na.rm = TRUE),
+       labels = "No outliers were flagged by the IQR rule.", pos = 3)
+}
+
+
+## Clean final plot: lake IQR bounds + outliers by season
+## (y-axis guaranteed to include max outlier = 0.137) 
+
+##  Expand margins and allow drawing in margins
+par(mar = c(9, 5, 5, 7), xpd = TRUE)
+
+##  Y-axis limits: include bounds AND outliers
+y_all = c(lower_lake,
+           upper_lake,
+           d_out$`Particulate Total N, mg/L`)
+
+y_pad = 0.05 * diff(range(y_all, na.rm = TRUE))
+
+ylim_use = c(min(y_all, na.rm = TRUE) - y_pad,
+              max(y_all, na.rm = TRUE) + y_pad)
+
+##  Base plot - empty median points by lake
+plot(x_lake, median_lake,
+     ylim = ylim_use,
+     xaxt = "n",
+     xlab = "",
+     ylab = "PTN (mg/L)",
+     main = "PTN outlier bounds by lake (IQR) with outliers by season")
+
+axis(1, at = x_lake, labels = lake_names, las = 2, cex.axis = 0.9)
+
+##   Add IQR bounds (non-outlier range)
+arrows(x0 = x_lake, y0 = lower_lake,
+       x1 = x_lake, y1 = upper_lake,
+       angle = 90, code = 3, length = 0.04)
+
+##  Format median points
+points(x_lake, median_lake, pch = 16)
+
+##  Overlay outliers
+if (nrow(d_out) > 0) {
+
+  season_levels = levels(d$SEASON)
+  season_cols = palette()[seq_along(season_levels)]
+  names(season_cols) = season_levels
+
+## x_out = jitter(x_lake[as.character(d_out$LAKE)], amount = 0.22)
+  
+  x_out = x_lake[as.character(d_out$LAKE)]
+
+  points(x_out,
+         d_out$`Particulate Total N, mg/L`,
+         pch = 19,
+         cex = 1.2,
+         col = season_cols[as.character(d_out$SEASON)])
+
+  legend("topright",
+         inset = c(-0.25, 0),
+         legend = season_levels,
+         col = season_cols,
+         pch = 19,
+         title = "Season",
+         cex = 0.9)
+}
+
+## X-axis label placed lower to avoid overlap 
+title(xlab = "Lake", line = 6)
+
+## Reset clipping
+par(xpd = FALSE)
+                     
+## Show all outliers (lake, season, PTN value)
+d_out_show = d_out[, c("LAKE", "SEASON", "Particulate Total N, mg/L")]
+d_out_show = d_out_show[order(d_out_show$`Particulate Total N, mg/L`, decreasing = TRUE), ]
+d_out_show
+
+## Confirm how many summer outliers you have
+table(d_out_show$SEASON)
+        
+        
+        
+
+##  PTP ASSESSMENT  ## PTP ASSESSMENT  ##  PTP ASSESSMENT
+library(readxl)
+df = read_excel("particulate_nutrients_data.xlsx",
+                 sheet = 2)
+
+##  Create a working dataset for ONE nutrient ( PTP)
+
+df_ptp = df[, c("LAKE",
+                 "SEASON",
+                 "Particulate Total P, ug/L")]
+                 
+##  Remove missing values because Logistic regression cannot handle them
+df_ptp = df_ptp[!is.na(df_ptp$LAKE), ]
+df_ptp = df_ptp[!is.na(df_ptp$SEASON), ]
+df_ptp = df_ptp[!is.na(df_ptp$`Particulate Total P, ug/L`), ]
+
+##  Factor LAKE and SEASON to categorical variables
+df_ptp$LAKE   = as.factor(df_ptp$LAKE)
+df_ptp$SEASON = as.factor(df_ptp$SEASON)
+
+##  Define outliers using the IQR rule within each lake
+##  Calculate Q1 (25th percentile) within each lake
+q1_by_lake = ave(df_ptp$`Particulate Total P, ug/L`,
+                  df_ptp$LAKE,
+                  FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+##  Calculate Q3 (75th percentile) within each lake
+q3_by_lake = ave(df_ptp$`Particulate Total P, ug/L`,
+                  df_ptp$LAKE,
+                  FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+##  Compute IQR within each lake
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+##  Define lower and upper bounds for outliers
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+##  Create binary outlier flag (TRUE = outlier)
+df_ptp$outlier = (
+  df_ptp$`Particulate Total P, ug/L` < lower_bound |
+  df_ptp$`Particulate Total P, ug/L` > upper_bound
+)
+
+##  Quick check: number of outliers vs non-outliers
+table(df_ptp$outlier)
+
+##  Fit logistic regression model
+##  Outcome: outlier (TRUE / FALSE)
+##  Predictors: SEASON + LAKE
+model_ptp = glm(outlier ~ SEASON + LAKE,
+                 data = df_ptp,
+                 family = binomial)
+
+summary(model_ptp)
+
+##  Compare performance of reduced model to Full model
+model_ptp_reduced = glm(outlier ~ LAKE,
+                         data = df_ptp,
+                         family = binomial)
+
+anova(model_ptp_reduced, model_ptp, test = "Chisq")
+
+## Output: Pr-value = 0.4952, which is > 0.05 so fail to reject H0
+
+## Descriptive visual shows proportion of outliers by season
+outlier_rate_by_season = tapply(df_ptp$outlier,
+                                 df_ptp$SEASON,
+                                 mean)
+barplot(outlier_rate_by_season,
+        ylab = "Proportion of observations flagged as outliers",
+        xlab = "Season",
+        main = " PTP outlier rate by season")  
+        
+        
+##  Plot lake-specific outlier bounds + overlay OUTLIERS
+##  Colored by SEASON ( PTP example)
+library(readxl)
+df = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+
+##  Keep only needed columns
+d = df[, c("LAKE", "SEASON", "Particulate Total P, ug/L")]
+
+##  Remove missing values
+d = d[!is.na(d$LAKE), ]
+d = d[!is.na(d$SEASON), ]
+d = d[!is.na(d$`Particulate Total P, ug/L`), ]
+
+##  Clean up season labels
+d$SEASON = trimws(d$SEASON)
+
+##  Make categorical variables
+d$LAKE = as.factor(d$LAKE)
+d$SEASON = as.factor(d$SEASON)
+
+##  Compute IQR bounds WITHIN each lake
+
+##  Q1 and Q3 within lake for each observation
+q1_by_lake = ave(d$`Particulate Total P, ug/L`, d$LAKE, FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+q3_by_lake = ave(d$`Particulate Total P, ug/L`, d$LAKE, FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+## Outlier flag for each row
+d$outlier = (d$`Particulate Total P, ug/L` < lower_bound) | (d$`Particulate Total P, ug/L` > upper_bound)
+
+##  Make a lake-level table of bounds (one row per lake)
+##  Using tapply to get one value per lake
+lower_lake = tapply(lower_bound, d$LAKE, function(x) x[1])
+upper_lake = tapply(upper_bound, d$LAKE, function(x) x[1])
+
+median_lake = tapply(d$`Particulate Total P, ug/L`, d$LAKE, median, na.rm = TRUE)
+
+##  Order lakes by median (makes plot easier to read)
+ord = order(median_lake)
+
+lake_names = names(median_lake)[ord]
+lower_lake = lower_lake[ord]
+upper_lake = upper_lake[ord]
+median_lake = median_lake[ord]
+
+## Numeric x positions for lakes
+x_lake = seq_along(lake_names)
+names(x_lake) = lake_names
+
+## Plot lake-specific outlier bounds + overlay OUTLIERS colored by SEASON
+
+library(readxl)
+
+df = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+
+## Keep only needed columns
+d = df[, c("LAKE", "SEASON", "Particulate Total P, ug/L")]
+
+## Remove missing values
+d = d[!is.na(d$LAKE), ]
+d = d[!is.na(d$SEASON), ]
+d = d[!is.na(d$`Particulate Total P, ug/L`), ]
+
+## Clean up season labels (helps avoid "Spring" vs "Spring " issues)
+d$SEASON = trimws(d$SEASON)
+
+## Make categorical variables
+d$LAKE = as.factor(d$LAKE)
+d$SEASON = as.factor(d$SEASON)
+
+
+## Compute IQR bounds within each lake
+q1_by_lake = ave(d$`Particulate Total P, ug/L`, d$LAKE, FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+q3_by_lake = ave(d$`Particulate Total P, ug/L`, d$LAKE, FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+## Outlier flag for each row
+d$outlier = (d$`Particulate Total P, ug/L` < lower_bound) | (d$`Particulate Total P, ug/L` > upper_bound)
+
+ 
+## Get one upper & lower value per lake using tapply
+lower_lake = tapply(lower_bound, d$LAKE, function(x) x[1])
+upper_lake = tapply(upper_bound, d$LAKE, function(x) x[1])
+
+median_lake = tapply(d$`Particulate Total P, ug/L`, d$LAKE, median, na.rm = TRUE)
+
+## Order lakes by median (makes plot easier to read)
+ord = order(median_lake)
+
+lake_names = names(median_lake)[ord]
+lower_lake = lower_lake[ord]
+upper_lake = upper_lake[ord]
+median_lake = median_lake[ord]
+
+## Numeric x positions for lakes
+x_lake = seq_along(lake_names)
+names(x_lake) = lake_names
+
+## Plot the bounds per lake (range bars) + median point 
+plot(x_lake, median_lake,
+     ylim = range(c(lower_lake, upper_lake), na.rm = TRUE),
+     xaxt = "n",
+     xlab = "Lake",
+     ylab = " PTP (mg/L)",
+     main = " PTP outlier bounds by lake (IQR) with outliers colored by season")
+
+axis(1, at = x_lake, labels = lake_names, las = 2, cex.axis = 0.8)
+
+## Range bars = non-outlier bounds for each lake
+arrows(x0 = x_lake, y0 = lower_lake,
+       x1 = x_lake, y1 = upper_lake,
+       angle = 90, code = 3, length = 0.04)
+
+## Median point
+points(x_lake, median_lake, pch = 16)
+
+
+## Overlay outlier points, colored by SEASON 
+## Keep only outliers
+d_out = d[d$outlier == TRUE, ]
+
+## If there are no outliers, avoid plotting errors
+if(nrow(d_out) > 0){
+
+  ## Map each outlier's lake to its x-position on the plot
+  x_out = x_lake[as.character(d_out$LAKE)]
+
+  ## Add slight horizontal jitter so points don't stack perfectly
+  x_out_j = jitter(x_out, amount = 0.12)
+
+  ## Assign a default set of colors (uses R's default palette)
+  season_levels = levels(d$SEASON)
+  season_cols = palette()[seq_along(season_levels)]
+  names(season_cols) = season_levels
+
+  ## Plot outliers (shape 19 = solid circle)
+  points(x_out_j, d_out$`Particulate Total P, ug/L`, pch = 19, col = season_cols[as.character(d_out$SEASON)])
+
+  ## Add legend for season
+  legend("topright", legend = season_levels, col = season_cols, pch = 19, title = "Season", cex = 0.9)
+
+} else {
+  text(x = mean(x_lake), y = max(upper_lake, na.rm = TRUE),
+       labels = "No outliers were flagged by the IQR rule.", pos = 3)
+}
+
+
+## Clean final plot: lake IQR bounds + outliers by season
+## (y-axis guaranteed to include max outlier = 0.137) 
+
+##  Expand margins and allow drawing in margins
+par(mar = c(9, 5, 5, 7), xpd = TRUE)
+
+##  Y-axis limits: include bounds AND outliers
+y_all = c(lower_lake,
+           upper_lake,
+           d_out$`Particulate Total P, ug/L`)
+
+y_pad = 0.05 * diff(range(y_all, na.rm = TRUE))
+
+ylim_use = c(min(y_all, na.rm = TRUE) - y_pad,
+              max(y_all, na.rm = TRUE) + y_pad)
+
+##  Base plot - empty median points by lake
+plot(x_lake, median_lake,
+     ylim = ylim_use,
+     xaxt = "n",
+     xlab = "",
+     ylab = " PTP (mg/L)",
+     main = " PTP outlier bounds by lake (IQR) with outliers by season")
+
+axis(1, at = x_lake, labels = lake_names, las = 2, cex.axis = 0.9)
+
+##   Add IQR bounds (non-outlier range)
+arrows(x0 = x_lake, y0 = lower_lake,
+       x1 = x_lake, y1 = upper_lake,
+       angle = 90, code = 3, length = 0.04)
+
+##  Format median points
+points(x_lake, median_lake, pch = 16)
+
+##  Overlay outliers
+if (nrow(d_out) > 0) {
+
+  season_levels = levels(d$SEASON)
+  season_cols = palette()[seq_along(season_levels)]
+  names(season_cols) = season_levels
+
+## x_out = jitter(x_lake[as.character(d_out$LAKE)], amount = 0.22)
+  
+  x_out = x_lake[as.character(d_out$LAKE)]
+
+  points(x_out,
+         d_out$`Particulate Total P, ug/L`,
+         pch = 19,
+         cex = 1.2,
+         col = season_cols[as.character(d_out$SEASON)])
+
+  legend("topright",
+         inset = c(-0.25, 0),
+         legend = season_levels,
+         col = season_cols,
+         pch = 19,
+         title = "Season",
+         cex = 0.9)
+}
+
+## X-axis label placed lower to avoid overlap 
+title(xlab = "Lake", line = 6)
+
+## Reset clipping
+par(xpd = FALSE)
+                     
+## Show all outliers (lake, season,  PTP value)
+d_out_show = d_out[, c("LAKE", "SEASON", "Particulate Total P, ug/L")]
+d_out_show = d_out_show[order(d_out_show$`Particulate Total P, ug/L`, decreasing = TRUE), ]
+d_out_show
+
+## Confirm how many summer outliers you have
+table(d_out_show$SEASON)            
+        
+    
+    
+    
+        
+##  POC ASSESSMENT  ## POC ASSESSMENT  ##  POC ASSESSMENT
+library(readxl)
+df = read_excel("particulate_nutrients_data.xlsx",
+                 sheet = 2)
+
+##  Create a working dataset for ONE nutrient ( POC)
+
+df_poc = df[, c("LAKE",
+                 "SEASON",
+                 "Particulate Organic Carbon, mg/L")]
+                 
+##  Remove missing values because Logistic regression cannot handle them
+df_poc = df_poc[!is.na(df_poc$LAKE), ]
+df_poc = df_poc[!is.na(df_poc$SEASON), ]
+df_poc = df_poc[!is.na(df_poc$`Particulate Organic Carbon, mg/L`), ]
+
+##  Factor LAKE and SEASON to categorical variables
+df_poc$LAKE   = as.factor(df_poc$LAKE)
+df_poc$SEASON = as.factor(df_poc$SEASON)
+
+##  Define outliers using the IQR rule within each lake
+##  Calculate Q1 (25th percentile) within each lake
+q1_by_lake = ave(df_poc$`Particulate Organic Carbon, mg/L`,
+                  df_poc$LAKE,
+                  FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+##  Calculate Q3 (75th percentile) within each lake
+q3_by_lake = ave(df_poc$`Particulate Organic Carbon, mg/L`,
+                  df_poc$LAKE,
+                  FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+##  Compute IQR within each lake
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+##  Define lower and upper bounds for outliers
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+##  Create binary outlier flag (TRUE = outlier)
+df_poc$outlier = (
+  df_poc$`Particulate Organic Carbon, mg/L` < lower_bound |
+  df_poc$`Particulate Organic Carbon, mg/L` > upper_bound
+)
+
+##  Quick check: number of outliers vs non-outliers
+table(df_poc$outlier)
+
+##  Fit logistic regression model
+##  Outcome: outlier (TRUE / FALSE)
+##  Predictors: SEASON + LAKE
+model_poc = glm(outlier ~ SEASON + LAKE,
+                 data = df_poc,
+                 family = binomial)
+
+summary(model_poc)
+
+##  Compare performance of reduced model to Full model
+model_poc_reduced = glm(outlier ~ LAKE,
+                         data = df_poc,
+                         family = binomial)
+
+anova(model_poc_reduced, model_poc, test = "Chisq")
+
+## Output: Pr-value = 0.424, which is > 0.05 so fail to reject H0
+
+## Descriptive visual shows proportion of outliers by season
+outlier_rate_by_season = tapply(df_poc$outlier,
+                                 df_poc$SEASON,
+                                 mean)
+barplot(outlier_rate_by_season,
+        ylab = "Proportion of observations flagged as outliers",
+        xlab = "Season",
+        main = " POC outlier rate by season")  
+        
+        
+##  Plot lake-specific outlier bounds + overlay OUTLIERS
+##  Colored by SEASON ( POC example)
+library(readxl)
+df = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+
+##  Keep only needed columns
+d = df[, c("LAKE", "SEASON", "Particulate Organic Carbon, mg/L")]
+
+##  Remove missing values
+d = d[!is.na(d$LAKE), ]
+d = d[!is.na(d$SEASON), ]
+d = d[!is.na(d$`Particulate Organic Carbon, mg/L`), ]
+
+##  Clean up season labels
+d$SEASON = trimws(d$SEASON)
+
+##  Make categorical variables
+d$LAKE = as.factor(d$LAKE)
+d$SEASON = as.factor(d$SEASON)
+
+##  Compute IQR bounds WITHIN each lake
+
+##  Q1 and Q3 within lake for each observation
+q1_by_lake = ave(d$`Particulate Organic Carbon, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+q3_by_lake = ave(d$`Particulate Organic Carbon, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+## Outlier flag for each row
+d$outlier = (d$`Particulate Organic Carbon, mg/L` < lower_bound) | (d$`Particulate Organic Carbon, mg/L` > upper_bound)
+
+##  Make a lake-level table of bounds (one row per lake)
+##  Using tapply to get one value per lake
+lower_lake = tapply(lower_bound, d$LAKE, function(x) x[1])
+upper_lake = tapply(upper_bound, d$LAKE, function(x) x[1])
+
+median_lake = tapply(d$`Particulate Organic Carbon, mg/L`, d$LAKE, median, na.rm = TRUE)
+
+##  Order lakes by median (makes plot easier to read)
+ord = order(median_lake)
+
+lake_names = names(median_lake)[ord]
+lower_lake = lower_lake[ord]
+upper_lake = upper_lake[ord]
+median_lake = median_lake[ord]
+
+## Numeric x positions for lakes
+x_lake = seq_along(lake_names)
+names(x_lake) = lake_names
+
+## Plot lake-specific outlier bounds + overlay OUTLIERS colored by SEASON
+
+library(readxl)
+
+df = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+
+## Keep only needed columns
+d = df[, c("LAKE", "SEASON", "Particulate Organic Carbon, mg/L")]
+
+## Remove missing values
+d = d[!is.na(d$LAKE), ]
+d = d[!is.na(d$SEASON), ]
+d = d[!is.na(d$`Particulate Organic Carbon, mg/L`), ]
+
+## Clean up season labels (helps avoid "Spring" vs "Spring " issues)
+d$SEASON = trimws(d$SEASON)
+
+## Make categorical variables
+d$LAKE = as.factor(d$LAKE)
+d$SEASON = as.factor(d$SEASON)
+
+
+## Compute IQR bounds within each lake
+q1_by_lake = ave(d$`Particulate Organic Carbon, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+q3_by_lake = ave(d$`Particulate Organic Carbon, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+## Outlier flag for each row
+d$outlier = (d$`Particulate Organic Carbon, mg/L` < lower_bound) | (d$`Particulate Organic Carbon, mg/L` > upper_bound)
+
+ 
+## Get one upper & lower value per lake using tapply
+lower_lake = tapply(lower_bound, d$LAKE, function(x) x[1])
+upper_lake = tapply(upper_bound, d$LAKE, function(x) x[1])
+
+median_lake = tapply(d$`Particulate Organic Carbon, mg/L`, d$LAKE, median, na.rm = TRUE)
+
+## Order lakes by median (makes plot easier to read)
+ord = order(median_lake)
+
+lake_names = names(median_lake)[ord]
+lower_lake = lower_lake[ord]
+upper_lake = upper_lake[ord]
+median_lake = median_lake[ord]
+
+## Numeric x positions for lakes
+x_lake = seq_along(lake_names)
+names(x_lake) = lake_names
+
+## Plot the bounds per lake (range bars) + median point 
+plot(x_lake, median_lake,
+     ylim = range(c(lower_lake, upper_lake), na.rm = TRUE),
+     xaxt = "n",
+     xlab = "Lake",
+     ylab = " POC (mg/L)",
+     main = " POC outlier bounds by lake (IQR) with outliers colored by season")
+
+axis(1, at = x_lake, labels = lake_names, las = 2, cex.axis = 0.8)
+
+## Range bars = non-outlier bounds for each lake
+arrows(x0 = x_lake, y0 = lower_lake,
+       x1 = x_lake, y1 = upper_lake,
+       angle = 90, code = 3, length = 0.04)
+
+## Median point
+points(x_lake, median_lake, pch = 16)
+
+
+## Overlay outlier points, colored by SEASON 
+## Keep only outliers
+d_out = d[d$outlier == TRUE, ]
+
+## If there are no outliers, avoid plotting errors
+if(nrow(d_out) > 0){
+
+  ## Map each outlier's lake to its x-position on the plot
+  x_out = x_lake[as.character(d_out$LAKE)]
+
+  ## Add slight horizontal jitter so points don't stack perfectly
+  x_out_j = jitter(x_out, amount = 0.12)
+
+  ## Assign a default set of colors (uses R's default palette)
+  season_levels = levels(d$SEASON)
+  season_cols = palette()[seq_along(season_levels)]
+  names(season_cols) = season_levels
+
+  ## Plot outliers (shape 19 = solid circle)
+  points(x_out_j, d_out$`Particulate Organic Carbon, mg/L`, pch = 19, col = season_cols[as.character(d_out$SEASON)])
+
+  ## Add legend for season
+  legend("topright", legend = season_levels, col = season_cols, pch = 19, title = "Season", cex = 0.9)
+
+} else {
+  text(x = mean(x_lake), y = max(upper_lake, na.rm = TRUE),
+       labels = "No outliers were flagged by the IQR rule.", pos = 3)
+}
+
+
+## Clean final plot: lake IQR bounds + outliers by season
+## (y-axis guaranteed to include max outlier = 0.137) 
+
+##  Expand margins and allow drawing in margins
+par(mar = c(9, 5, 5, 7), xpd = TRUE)
+
+##  Y-axis limits: include bounds AND outliers
+y_all = c(lower_lake,
+           upper_lake,
+           d_out$`Particulate Organic Carbon, mg/L`)
+
+y_pad = 0.05 * diff(range(y_all, na.rm = TRUE))
+
+ylim_use = c(min(y_all, na.rm = TRUE) - y_pad,
+              max(y_all, na.rm = TRUE) + y_pad)
+
+##  Base plot - empty median points by lake
+plot(x_lake, median_lake,
+     ylim = ylim_use,
+     xaxt = "n",
+     xlab = "",
+     ylab = " POC (mg/L)",
+     main = " POC outlier bounds by lake (IQR) with outliers by season")
+
+axis(1, at = x_lake, labels = lake_names, las = 2, cex.axis = 0.9)
+
+##   Add IQR bounds (non-outlier range)
+arrows(x0 = x_lake, y0 = lower_lake,
+       x1 = x_lake, y1 = upper_lake,
+       angle = 90, code = 3, length = 0.04)
+
+##  Format median points
+points(x_lake, median_lake, pch = 16)
+
+##  Overlay outliers
+if (nrow(d_out) > 0) {
+
+  season_levels = levels(d$SEASON)
+  season_cols = palette()[seq_along(season_levels)]
+  names(season_cols) = season_levels
+
+## x_out = jitter(x_lake[as.character(d_out$LAKE)], amount = 0.22)
+  
+  x_out = x_lake[as.character(d_out$LAKE)]
+
+  points(x_out,
+         d_out$`Particulate Organic Carbon, mg/L`,
+         pch = 19,
+         cex = 1.2,
+         col = season_cols[as.character(d_out$SEASON)])
+
+  legend("topright",
+         inset = c(-0.25, 0),
+         legend = season_levels,
+         col = season_cols,
+         pch = 19,
+         title = "Season",
+         cex = 0.9)
+}
+
+## X-axis label placed lower to avoid overlap 
+title(xlab = "Lake", line = 6)
+
+## Reset clipping
+par(xpd = FALSE)
+                     
+## Show all outliers (lake, season,  POC value)
+d_out_show = d_out[, c("LAKE", "SEASON", "Particulate Organic Carbon, mg/L")]
+d_out_show = d_out_show[order(d_out_show$`Particulate Organic Carbon, mg/L`, decreasing = TRUE), ]
+d_out_show
+
+## Confirm how many summer outliers you have
+table(d_out_show$SEASON)            
+                
+    
+    
+    
+        
+##  TSS ASSESSMENT  ## TSS ASSESSMENT  ##  TSS ASSESSMENT
+library(readxl)
+df = read_excel("particulate_nutrients_data.xlsx",
+                 sheet = 2)
+
+##  Create a working dataset for ONE nutrient ( TSS)
+
+df_tss = df[, c("LAKE",
+                 "SEASON",
+                 "Total Suspended Solids, mg/L")]
+                 
+##  Remove missing values because Logistic regression cannot handle them
+df_tss = df_tss[!is.na(df_tss$LAKE), ]
+df_tss = df_tss[!is.na(df_tss$SEASON), ]
+df_tss = df_tss[!is.na(df_tss$`Total Suspended Solids, mg/L`), ]
+
+##  Factor LAKE and SEASON to categorical variables
+df_tss$LAKE   = as.factor(df_tss$LAKE)
+df_tss$SEASON = as.factor(df_tss$SEASON)
+
+##  Define outliers using the IQR rule within each lake
+##  Calculate Q1 (25th percentile) within each lake
+q1_by_lake = ave(df_tss$`Total Suspended Solids, mg/L`,
+                  df_tss$LAKE,
+                  FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+##  Calculate Q3 (75th percentile) within each lake
+q3_by_lake = ave(df_tss$`Total Suspended Solids, mg/L`,
+                  df_tss$LAKE,
+                  FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+##  Compute IQR within each lake
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+##  Define lower and upper bounds for outliers
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+##  Create binary outlier flag (TRUE = outlier)
+df_tss$outlier = (
+  df_tss$`Total Suspended Solids, mg/L` < lower_bound |
+  df_tss$`Total Suspended Solids, mg/L` > upper_bound
+)
+
+##  Quick check: number of outliers vs non-outliers
+table(df_tss$outlier)
+
+##  Fit logistic regression model
+##  Outcome: outlier (TRUE / FALSE)
+##  Predictors: SEASON + LAKE
+model_tss = glm(outlier ~ SEASON + LAKE,
+                 data = df_tss,
+                 family = binomial)
+
+summary(model_tss)
+
+##  Compare performance of reduced model to Full model
+model_tss_reduced = glm(outlier ~ LAKE,
+                         data = df_tss,
+                         family = binomial)
+
+anova(model_tss_reduced, model_tss, test = "Chisq")
+
+## Output: Pr-value = 0.3958, which is > 0.05 so fail to reject H0
+
+## Descriptive visual shows proportion of outliers by season
+outlier_rate_by_season = tapply(df_tss$outlier,
+                                 df_tss$SEASON,
+                                 mean)
+barplot(outlier_rate_by_season,
+        ylab = "Proportion of observations flagged as outliers",
+        xlab = "Season",
+        main = " TSS outlier rate by season")  
+        
+        
+##  Plot lake-specific outlier bounds + overlay OUTLIERS
+##  Colored by SEASON ( TSS example)
+library(readxl)
+df = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+
+##  Keep only needed columns
+d = df[, c("LAKE", "SEASON", "Total Suspended Solids, mg/L")]
+
+##  Remove missing values
+d = d[!is.na(d$LAKE), ]
+d = d[!is.na(d$SEASON), ]
+d = d[!is.na(d$`Total Suspended Solids, mg/L`), ]
+
+##  Clean up season labels
+d$SEASON = trimws(d$SEASON)
+
+##  Make categorical variables
+d$LAKE = as.factor(d$LAKE)
+d$SEASON = as.factor(d$SEASON)
+
+##  Compute IQR bounds WITHIN each lake
+
+##  Q1 and Q3 within lake for each observation
+q1_by_lake = ave(d$`Total Suspended Solids, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+q3_by_lake = ave(d$`Total Suspended Solids, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+## Outlier flag for each row
+d$outlier = (d$`Total Suspended Solids, mg/L` < lower_bound) | (d$`Total Suspended Solids, mg/L` > upper_bound)
+
+##  Make a lake-level table of bounds (one row per lake)
+##  Using tapply to get one value per lake
+lower_lake = tapply(lower_bound, d$LAKE, function(x) x[1])
+upper_lake = tapply(upper_bound, d$LAKE, function(x) x[1])
+
+median_lake = tapply(d$`Total Suspended Solids, mg/L`, d$LAKE, median, na.rm = TRUE)
+
+##  Order lakes by median (makes plot easier to read)
+ord = order(median_lake)
+
+lake_names = names(median_lake)[ord]
+lower_lake = lower_lake[ord]
+upper_lake = upper_lake[ord]
+median_lake = median_lake[ord]
+
+## Numeric x positions for lakes
+x_lake = seq_along(lake_names)
+names(x_lake) = lake_names
+
+## Plot lake-specific outlier bounds + overlay OUTLIERS colored by SEASON
+
+library(readxl)
+
+df = read_excel("particulate_nutrients_data.xlsx", sheet = 2)
+
+## Keep only needed columns
+d = df[, c("LAKE", "SEASON", "Total Suspended Solids, mg/L")]
+
+## Remove missing values
+d = d[!is.na(d$LAKE), ]
+d = d[!is.na(d$SEASON), ]
+d = d[!is.na(d$`Total Suspended Solids, mg/L`), ]
+
+## Clean up season labels (helps avoid "Spring" vs "Spring " issues)
+d$SEASON = trimws(d$SEASON)
+
+## Make categorical variables
+d$LAKE = as.factor(d$LAKE)
+d$SEASON = as.factor(d$SEASON)
+
+
+## Compute IQR bounds within each lake
+q1_by_lake = ave(d$`Total Suspended Solids, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.25, na.rm = TRUE))
+
+q3_by_lake = ave(d$`Total Suspended Solids, mg/L`, d$LAKE, FUN = function(x) quantile(x, 0.75, na.rm = TRUE))
+
+iqr_by_lake = q3_by_lake - q1_by_lake
+
+lower_bound = q1_by_lake - 1.5 * iqr_by_lake
+upper_bound = q3_by_lake + 1.5 * iqr_by_lake
+
+## Outlier flag for each row
+d$outlier = (d$`Total Suspended Solids, mg/L` < lower_bound) | (d$`Total Suspended Solids, mg/L` > upper_bound)
+
+ 
+## Get one upper & lower value per lake using tapply
+lower_lake = tapply(lower_bound, d$LAKE, function(x) x[1])
+upper_lake = tapply(upper_bound, d$LAKE, function(x) x[1])
+
+median_lake = tapply(d$`Total Suspended Solids, mg/L`, d$LAKE, median, na.rm = TRUE)
+
+## Order lakes by median (makes plot easier to read)
+ord = order(median_lake)
+
+lake_names = names(median_lake)[ord]
+lower_lake = lower_lake[ord]
+upper_lake = upper_lake[ord]
+median_lake = median_lake[ord]
+
+## Numeric x positions for lakes
+x_lake = seq_along(lake_names)
+names(x_lake) = lake_names
+
+## Plot the bounds per lake (range bars) + median point 
+plot(x_lake, median_lake,
+     ylim = range(c(lower_lake, upper_lake), na.rm = TRUE),
+     xaxt = "n",
+     xlab = "Lake",
+     ylab = " TSS (mg/L)",
+     main = " TSS outlier bounds by lake (IQR) with outliers colored by season")
+
+axis(1, at = x_lake, labels = lake_names, las = 2, cex.axis = 0.8)
+
+## Range bars = non-outlier bounds for each lake
+arrows(x0 = x_lake, y0 = lower_lake,
+       x1 = x_lake, y1 = upper_lake,
+       angle = 90, code = 3, length = 0.04)
+
+## Median point
+points(x_lake, median_lake, pch = 16)
+
+
+## Overlay outlier points, colored by SEASON 
+## Keep only outliers
+d_out = d[d$outlier == TRUE, ]
+
+## If there are no outliers, avoid plotting errors
+if(nrow(d_out) > 0){
+
+  ## Map each outlier's lake to its x-position on the plot
+  x_out = x_lake[as.character(d_out$LAKE)]
+
+  ## Add slight horizontal jitter so points don't stack perfectly
+  x_out_j = jitter(x_out, amount = 0.12)
+
+  ## Assign a default set of colors (uses R's default palette)
+  season_levels = levels(d$SEASON)
+  season_cols = palette()[seq_along(season_levels)]
+  names(season_cols) = season_levels
+
+  ## Plot outliers (shape 19 = solid circle)
+  points(x_out_j, d_out$`Total Suspended Solids, mg/L`, pch = 19, col = season_cols[as.character(d_out$SEASON)])
+
+  ## Add legend for season
+  legend("topright", legend = season_levels, col = season_cols, pch = 19, title = "Season", cex = 0.9)
+
+} else {
+  text(x = mean(x_lake), y = max(upper_lake, na.rm = TRUE),
+       labels = "No outliers were flagged by the IQR rule.", pos = 3)
+}
+
+
+## Clean final plot: lake IQR bounds + outliers by season
+## (y-axis guaranteed to include max outlier = 0.137) 
+
+##  Expand margins and allow drawing in margins
+par(mar = c(9, 5, 5, 7), xpd = TRUE)
+
+##  Y-axis limits: include bounds AND outliers
+y_all = c(lower_lake,
+           upper_lake,
+           d_out$`Total Suspended Solids, mg/L`)
+
+y_pad = 0.05 * diff(range(y_all, na.rm = TRUE))
+
+ylim_use = c(min(y_all, na.rm = TRUE) - y_pad,
+              max(y_all, na.rm = TRUE) + y_pad)
+
+##  Base plot - empty median points by lake
+plot(x_lake, median_lake,
+     ylim = ylim_use,
+     xaxt = "n",
+     xlab = "",
+     ylab = " TSS (mg/L)",
+     main = " TSS outlier bounds by lake (IQR) with outliers by season")
+
+axis(1, at = x_lake, labels = lake_names, las = 2, cex.axis = 0.9)
+
+##   Add IQR bounds (non-outlier range)
+arrows(x0 = x_lake, y0 = lower_lake,
+       x1 = x_lake, y1 = upper_lake,
+       angle = 90, code = 3, length = 0.04)
+
+##  Format median points
+points(x_lake, median_lake, pch = 16)
+
+##  Overlay outliers
+if (nrow(d_out) > 0) {
+
+  season_levels = levels(d$SEASON)
+  season_cols = palette()[seq_along(season_levels)]
+  names(season_cols) = season_levels
+
+## x_out = jitter(x_lake[as.character(d_out$LAKE)], amount = 0.22)
+  
+  x_out = x_lake[as.character(d_out$LAKE)]
+
+  points(x_out,
+         d_out$`Total Suspended Solids, mg/L`,
+         pch = 19,
+         cex = 1.2,
+         col = season_cols[as.character(d_out$SEASON)])
+
+  legend("topright",
+         inset = c(-0.25, 0),
+         legend = season_levels,
+         col = season_cols,
+         pch = 19,
+         title = "Season",
+         cex = 0.9)
+}
+
+## X-axis label placed lower to avoid overlap 
+title(xlab = "Lake", line = 6)
+
+## Reset clipping
+par(xpd = FALSE)
+                     
+## Show all outliers (lake, season,  TSS value)
+d_out_show = d_out[, c("LAKE", "SEASON", "Total Suspended Solids, mg/L")]
+d_out_show = d_out_show[order(d_out_show$`Total Suspended Solids, mg/L`, decreasing = TRUE), ]
+d_out_show
+
+## Confirm how many summer outliers you have
+table(d_out_show$SEASON)
+        
+        
+
+
+
+
+
+
+
+
+
+
