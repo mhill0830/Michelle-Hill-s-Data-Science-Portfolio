@@ -4,7 +4,7 @@ This project explores nutrient trends and lake classification using EPA Great La
 
 ## Project Presentation
 
-🎥 [![Watch Presentation](presentation_thumbnail.png)](https://drive.google.com/file/d/14iGc4oEyhy0dIe-NlAthDrH_E92Ry1JR/view?usp=drive_link)
+🎥 [![Watch Presentation](PTN_recording_thumbnail.png)](https://drive.google.com/file/d/14iGc4oEyhy0dIe-NlAthDrH_E92Ry1JR/view?usp=drive_link)
 
 ## Project Components
 
